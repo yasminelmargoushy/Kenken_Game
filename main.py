@@ -12,6 +12,14 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 
 
+
+def adjc(line_1, line_2):
+    x1, y1 = line_1
+    x2, y2 = line_2
+    dx, dy = x1 - x2, y1 - y2
+    return (dx == 0 and abs(dy) == 1) or (dy == 0 and abs(dx) == 1)
+    
+
 def operation(op):
 
     if op == '+':
@@ -25,12 +33,6 @@ def operation(op):
     else:
         return None
 
-
-def adjc(line_1, line_2):
-    x1, y1 = line_1
-    x2, y2 = line_2
-    dx, dy = x1 - x2, y1 - y2
-    return (dx == 0 and abs(dy) == 1) or (dy == 0 and abs(dx) == 1)
 
 
 def ken_generator(size):
@@ -254,3 +256,163 @@ def solve_100_board(output_file):
                     current_time2 = timer()
                     my_time = current_time2 - current_time1
                     output_file.writerow([name, size, my_time])
+                    
+ 
+ 
+#GUI
+
+class KENKEN(QWidget):
+
+   def __init__(self, parent = None):
+      super(KENKEN, self).__init__(parent)
+
+      self.title = "Kenken"
+      self.top = 200
+      self.left = 200
+      self.width = 1500
+      self.height = 1000
+      self.paint_flag = 0
+      self.sol_flag = 0
+
+      self.btn = QPushButton("Enter the game size", self)
+      self.btn.move(50,50)
+      self.btn.clicked.connect(self.getint)
+
+      self.btn2 = QPushButton("Solve Game", self)
+      self.btn2.move(50,115)
+      self.btn2.clicked.connect(self.s)
+
+      self.label = QLabel('Choose the algorithm', self)
+      self.label.move(50,80)
+
+      self.dropDown = QComboBox(self)
+      self.dropDown.setGeometry(QRect(250, 75, 300, 25))
+      self.dropDown.setEditable(True)
+      self.dropDown.lineEdit().setAlignment(Qt.AlignCenter)
+      self.dropDown.addItems(["Choose the algorithm", "Backtracking", "Backtracking with forward checking", "Backtracking with arc"])
+
+      self.dropDown.currentTextChanged.connect(self.current_text_changed)
+
+      self.setWindowTitle("Kenken")
+      self.InitWindow()
+
+
+   def InitWindow(self):
+       self.setGeometry(self.left, self.top, self.width, self.height)
+       self.show()
+
+   def current_text_changed(self, s):
+       global alg
+       alg = s
+
+   def paintEvent(self, event):
+       if self.paint_flag:
+            colors = [QColor(255, 0, 0, 127), QColor(0, 0, 255, 127), QColor(0, 255, 0, 127), QColor(128, 0, 0, 127),
+                    QColor(205, 92, 92, 127), QColor(255, 160, 122, 127), QColor(255, 165, 0, 127), QColor(190, 183, 107, 127),
+                    QColor(128, 128, 0, 127), QColor(60, 179, 113, 127), QColor(32, 178, 170, 127), QColor(173, 216, 230, 127),
+                    QColor(138, 43, 226, 127), QColor(139, 0, 139, 127), QColor(216, 191, 216, 127), QColor(221, 160, 221, 127),
+                    QColor(199, 20, 133, 127), QColor(255, 20, 147, 127), QColor(245, 222, 180, 127), QColor(160, 82, 45, 127),
+                    QColor(210, 133, 63, 127), QColor(119, 136, 153, 127), QColor(244, 164, 96, 127), QColor(143, 188, 143, 127),
+                    QColor(255, 255, 255, 127), QColor(0, 130, 0, 127), QColor(196, 62, 68, 127), QColor(140, 100, 80, 127),
+                    QColor(162, 221, 154, 127), QColor(0, 180, 110, 127), QColor(100, 100, 255, 127), QColor(150, 255, 200, 127)]
+
+            painter = QPainter(self)
+            w = 100
+            h = 100
+            c = 0
+            recs = []
+            for p in problem:
+                for rec in p[0]:
+                    rect = QRect(350 + w*rec[0],100 + h*rec[1], w, h)
+                    recs.append(rect)
+                    painter.setBrush(colors[c])
+                    painter.drawRect(rect)
+                    if rec == p[0][0]:
+                        if p[-2] == ".":
+                            painter.drawText(rect, Qt.AlignLeft, str(p[-1]))
+                        else:
+                            painter.drawText(rect, Qt.AlignLeft, str(p[-1])+str(p[-2]))
+                c += 1
+
+            if self.sol_flag:
+                ind = 0
+                for key, value in res.items():
+                    for v in value:
+                        painter.drawText(recs[ind], Qt.AlignCenter, str(v))
+                        ind += 1
+
+
+   def getint(self):
+       global x
+       x,ok = QInputDialog.getInt(self,"Game Size","enter a number")
+       global kenn
+       kenn = do(x)
+       self.paint_flag = 1
+       self.update()
+
+   def s(self):
+       self.sol_flag = 1
+       solve(kenn)
+       self.update()
+
+
+def do(num1):
+    size, cages = ken_generator(num1)
+    global problem
+    problem = []
+    problem = cages
+    ken = Ken_Ken_Game(size, cages)
+    return ken
+
+def solve(kenn):
+    global res
+    res = {}
+    if (alg == "Backtracking"):
+        assignment = csp.backtracking_search(kenn)
+        res = assignment
+    elif (alg == "Backtracking with forward checking"):
+        assignment = csp.backtracking_search(kenn, inference=csp.forward_checking)
+        res = assignment
+    elif (alg == "Backtracking with arc"):
+        assignment = csp.backtracking_search(kenn, inference=csp.mac)
+        res = assignment
+
+
+if __name__ == "__main__":
+
+    app = QApplication(sys.argv)
+    ex = KENKEN()
+    ex.show()
+
+    sys.exit(app.exec_())
+
+
+"""
+def printValue():
+    pname = player_name.get()
+    int_answer = int(pname)
+    size, cages = ken_generator(int_answer)
+
+    ken = Ken_Ken_Game(size, cages)
+
+    assignment = csp.backtracking_search(ken,inference=csp.forward_checking)
+
+    ken.display(assignment)
+
+
+
+if __name__ == "__main__":
+    #solve_100_game("kenken.csv")
+
+    size, cages = ken_generator(4)
+
+    ken = Ken_Ken_Game(size, cages)
+
+    assignment = csp.backtracking_search(ken)
+    assignemnt2 = csp.backtracking_search(ken, inference=csp.forward_checking)
+    assignment3 = csp.backtracking_search(ken, inference=csp.mac)
+
+    ken.display(assignment)
+    ken.display(assignemnt2)
+    ken.display(assignment3)
+"""
