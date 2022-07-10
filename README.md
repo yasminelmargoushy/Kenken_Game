@@ -1,8 +1,8 @@
 # Kenken_Game
-these libraries have to be installed first: pyQT.
+These libraries have to be installed first: PyQT5.
 
 How to run:
-open the file in the directory then excute :
+Open the file in the directory then excute:
 
 cd *file path*
-to run: python kenken.py
+To run: python main.py

@@ -1,6 +1,5 @@
-import csp
+import backtracking
 from timeit import default_timer as timer
-from sys import stderr
 from itertools import product, permutations
 from functools import reduce
 from random import random, shuffle, randint, choice
@@ -12,8 +11,8 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 
 
-
 def adjc(line_1, line_2):
+    """ Get Adj cells """
     x1, y1 = line_1
     x2, y2 = line_2
     dx, dy = x1 - x2, y1 - y2
@@ -21,7 +20,7 @@ def adjc(line_1, line_2):
     
 
 def operation(op):
-
+    # Calculate target
     if op == '+':
         return lambda a, b: a + b
     elif op == '-':
@@ -34,110 +33,96 @@ def operation(op):
         return None
 
 
-
 def ken_generator(size):
+    """ Generate Kenken Board """
     game = [[((i + j) % size) + 1 for i in range(size)] for j in range(size)]
-    print(game)
+
+    # Shuffle values between cells
+    # Shuffle Rows
     for _ in range(size):
         shuffle(game)
-
+    # Shuffle Coloumns
     for i1 in range(size):
         for j1 in range(size):
             if random() > 0.5:
                 for r in range(size):
                     game[r][i1], game[r][j1] = game[r][j1], game[r][i1]
 
+    # Create a map between cell position and value
     game = {(j + 1, i + 1): game[i][j] for i in range(size) for j in range(size)}
-    print(game)
-    not_cg = sorted(game.keys(), key=lambda var: var[1])
 
+    # Add All cells to as not_caged list
+    not_cg = sorted(game.keys(), key=lambda var: var[1])
+    # Set caged list to empty [2D list]
     cages = []
     while not_cg:
-
+        # Add a new empty clique
         cages.append([])
-
+        # Choose an initial random size for clique between 1 & 4
         csize = randint(1, 4)
-
+        # Set root square to the first cell that is in the not_caged list
         square = not_cg[0]
-
+        # Remove Selected root from not_caged list
         not_cg.remove(square)
-
+        # Add Selected root to the last new empty clique
         cages[-1].append(square)
-
+        # Loop on the initial random size for clique
         for _ in range(csize - 1):
-
+            # Select all cell that are not_caged and adj to the square cell
             adjs = [other for other in not_cg if adjc(square, other)]
-
+            # Select one of the above cells and make it the new square or if thnonee list is empty return
             square = choice(adjs) if adjs else None
-
+            # If square equals none return [either no more cells or no more adj cells]
             if not square:
                 break
-
+            # Remove Selected Square from not_caged
             not_cg.remove(square)
-            
+            # Add Selected Square to the last current clique
             cages[-1].append(square)
-            
+        # Get the Actual final size of the clique
         csize = len(cages[-1])
         if csize == 1:
+            # if 1 no operation
             square = cages[-1][0]
             cages[-1] = ((square, ), '.', game[square])
             continue
         elif csize == 2:
+            # if 2 the division if remainder is zero otherwise subtraction
             fst, snd = cages[-1][0], cages[-1][1]
             if game[fst] / game[snd] > 0 and not game[fst] % game[snd]:
                 op = "/" # choice("+-*/")
             else:
                 op = "-" # choice("+-*")
         else:
+            # else either summation or multiplication
             op = choice("+*")
-
+        # Calculate target value based on the chosen operation
         target = reduce(operation(op), [game[square] for square in cages[-1]])
-
+        # Create a tuple of the cliques, their operations & their target values
         cages[-1] = (tuple(cages[-1]), op, int(target))
 
     return size, cages
-    
-    
-def parsing_game(rows):
-    if isinstance(rows, str):
-        rows = rows.splitrows(True)
 
-    try:
-        content = rows[0][:-1]
-        size = int(content)
-    except:
-        exit(11)
-
-    cages = []
-    for line in rows[1:]:
-        content = line[:-1]
-        if content:
-            try:
-                cl = eval(content)
-                cages.append(cl)
-            except:
-                exit(12)
-
-    return size, cages
 
 def Valid(size, cages):
+    # Function that returns true if cell is within range
     outOfBounds = lambda xy: xy[0] < 1 or xy[0] > size or xy[1] < 1 or xy[1] > size
 
     mentioned = set()
     for i in range(len(cages)):
         members, op, target = cages[i]
-
+        # Remove Duplicates
         cages[i] = (tuple(set(members)), op, target)
 
         members, op, target = cages[i]
-
+        # Make Sure an operator is one of the following
         if op not in "+-*/.":
             exit(1)
-
+        # Make Sure All Points are inside Bound of 0 -> Size
         problematic = list(filter(outOfBounds, members))
         if problematic:
             exit(2)
-
+        # Make Sure Once a point is Taken it Can't be Taken Again by another Clique
         problematic = mentioned.intersection(set(members))
         if problematic:
             exit(3)
@@ -145,7 +130,7 @@ def Valid(size, cages):
         mentioned.update(set(members))
 
     indexes = range(1, size + 1)
-
+    # Make All Points are Taken and put in 1 clique
     problematic = set([(x, y) for y in indexes for x in indexes]).difference(mentioned)
 
     if problematic:
@@ -153,6 +138,7 @@ def Valid(size, cages):
 
 
 def conflicting(X, x, Y, y):
+    """ Make Sure not 2 different cells have the same values"""
     for i in range(len(X)):
         for j in range(len(Y)):
             mA = X[i]
@@ -161,10 +147,11 @@ def conflicting(X, x, Y, y):
             mb = y[j]
             if (mA[0] == mB[0]) != (mA[1] == mB[1]) and ma == mb:
                 return True
-
     return False
 
+
 def validated(values, operation, target):
+    """ Tests if the sent domain is valid to achieve target """
     for p in permutations(values):
         if reduce(operation, p) == target:
             return True
@@ -173,7 +160,7 @@ def validated(values, operation, target):
 
 
 def Domain(size, cages):
-
+    """Domain Function Returns the available Domains fo each clique"""
     domains = {}
     for cl in cages:
         members, op, target = cl
@@ -186,7 +173,9 @@ def Domain(size, cages):
 
     return domains
 
+
 def Neighbour(cages):
+    """ Returns list of the Neighbours to each clique [clique on the same row or coloumn of any cell in the clique] """
     neighbors = {}
     for members, _, _ in cages:
         neighbors[members] = []
@@ -200,25 +189,27 @@ def Neighbour(cages):
 
     return neighbors
 
-class Ken_Ken_Game(csp.CSP):
+
+class Ken_Ken_Game(backtracking.backtraking):
 
     def __init__(self, size, cages):
+        # Make Sure generated board is valid
         Valid(size, cages)
-        
+        # Get All variables (cliques)
         variables = [members for members, _, _ in cages]
-        
+        # Get possible domain for variables that can achieve target value
         domains = Domain(size, cages)
-
+        # Get Neighbours of each variable
         neighbors = Neighbour(cages)
-
-        csp.CSP.__init__(self, variables, domains, neighbors, self.my_constarints)
+        # Define call backtracking init function
+        backtracking.backtraking.__init__(self, variables, domains, neighbors, self.my_constarints)
 
         self.size = size
         self.checks = 0
 
     def my_constarints(self, A, a, B, b):
+        # Customize Constrains
         self.checks += 1
-
         return A == B or not conflicting(A, a, B, b)
 
 
@@ -229,10 +220,11 @@ def solve_100_games(kenken, algorithm):
         dt = time() - dt
         return assignment, (kenken.checks, kenken.nassigns, dt)
 
+
 def solve_100_board(output_file):
-    bt         = lambda ken: csp.backtracking_search(ken)
-    fc         = lambda ken: csp.backtracking_search(ken, inference=csp.forward_checking)
-    mac        = lambda ken: csp.backtracking_search(ken, inference=csp.mac)
+    bt         = lambda ken: backtracking.backtracking_search(ken)
+    fc         = lambda ken: backtracking.backtracking_search(ken, inference=backtracking.forward_checking)
+    mac        = lambda ken: backtracking.backtracking_search(ken, inference=backtracking.mac)
 
     algorithms = {
         "BT": bt,
@@ -256,11 +248,8 @@ def solve_100_board(output_file):
                     current_time2 = timer()
                     my_time = current_time2 - current_time1
                     output_file.writerow([name, size, my_time])
-                    
- 
- 
-#GUI
 
+#GUI
 class KENKEN(QWidget):
 
    def __init__(self, parent = None):
@@ -314,7 +303,9 @@ class KENKEN(QWidget):
                     QColor(199, 20, 133, 127), QColor(255, 20, 147, 127), QColor(245, 222, 180, 127), QColor(160, 82, 45, 127),
                     QColor(210, 133, 63, 127), QColor(119, 136, 153, 127), QColor(244, 164, 96, 127), QColor(143, 188, 143, 127),
                     QColor(255, 255, 255, 127), QColor(0, 130, 0, 127), QColor(196, 62, 68, 127), QColor(140, 100, 80, 127),
-                    QColor(162, 221, 154, 127), QColor(0, 180, 110, 127), QColor(100, 100, 255, 127), QColor(150, 255, 200, 127)]
+                    QColor(162, 221, 154, 127), QColor(0, 180, 110, 127), QColor(100, 100, 255, 127), QColor(150, 255, 200, 127),
+                    QColor(60, 100, 154, 127), QColor(100, 60, 110, 127), QColor(60, 100, 60, 100), QColor(60, 200, 200, 60),
+                    QColor(60, 255, 150, 0), QColor(200, 150, 110, 127), QColor(200, 80, 60, 200), QColor(120, 70, 200, 60)]
 
             painter = QPainter(self)
             w = 100
@@ -341,22 +332,25 @@ class KENKEN(QWidget):
                         painter.drawText(recs[ind], Qt.AlignCenter, str(v))
                         ind += 1
 
-
    def getint(self):
+       """ Handle function of Game Size button """
        global x
        x,ok = QInputDialog.getInt(self,"Game Size","enter a number")
        global kenn
        kenn = do(x)
        self.paint_flag = 1
+       self.sol_flag = 0
        self.update()
 
    def s(self):
+       """ Handle function of Solve button """
        self.sol_flag = 1
        solve(kenn)
        self.update()
 
 
 def do(num1):
+    """ Generate and Validate Kenken Board"""
     size, cages = ken_generator(num1)
     global problem
     problem = []
@@ -364,17 +358,19 @@ def do(num1):
     ken = Ken_Ken_Game(size, cages)
     return ken
 
+
 def solve(kenn):
+    """ Function Called to Solve Kenken board """
     global res
     res = {}
     if (alg == "Backtracking"):
-        assignment = csp.backtracking_search(kenn)
+        assignment = backtracking.backtracking_search(kenn)
         res = assignment
     elif (alg == "Backtracking with forward checking"):
-        assignment = csp.backtracking_search(kenn, inference=csp.forward_checking)
+        assignment = backtracking.backtracking_search(kenn, inference=backtracking.forward_checking)
         res = assignment
     elif (alg == "Backtracking with arc"):
-        assignment = csp.backtracking_search(kenn, inference=csp.mac)
+        assignment = backtracking.backtracking_search(kenn, inference=backtracking.mac)
         res = assignment
 
 
